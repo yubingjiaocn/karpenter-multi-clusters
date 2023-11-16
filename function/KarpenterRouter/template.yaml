@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  KarpenterRouter
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+  KarpenterRouterFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.10
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ClusterMappingTable
+      Events:
+        ScheduledChangeRule:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.health
+              detail-type:
+                - AWS Health Event
+            DeadLetterConfig:
+              Arn: !Ref EBRuleDLQ
+        SpotInterruptionRule:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.ec2
+              detail-type:
+                - EC2 Spot Instance Interruption Warning
+            DeadLetterConfig:
+              Arn: !Ref EBRuleDLQ
+        InstanceStateChangeRule:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.ec2
+              detail-type:
+                - EC2 Instance State-change Notification
+              detail:
+                state:
+                  - "anything-but":
+                    - "pending"
+                    - "running"
+            DeadLetterConfig:
+              Arn: !Ref EBRuleDLQ
+  EBRuleDLQ:
+    Type: AWS::SQS::Queue
+  ClusterMappingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: ClusterName
+          AttributeType: S
+        - AttributeName: QueueUrl
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ClusterName
+          KeyType: HASH
+        - AttributeName: QueueUrl
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+Outputs:
+  KarpenterRouterFunction:
+    Description: "Karpenter Router Lambda Function ARN"
+    Value: !GetAtt KarpenterRouterFunction.Arn
+  ClusterMappingTable:
+    Description: "DynamoDB Tables to map EKS cluster to SQS queues"
+    Value: !GetAtt ClusterMappingTable.Arn
