@@ -25,6 +25,21 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref ClusterMappingTable
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName: !Ref ClusterMappingTable
+      - Statement:
+        - Sid: SQSSendMessagePolicy
+          Effect: Allow
+          Action:
+          - sqs:SendMessage
+          Resource: '*'
+      - Statement:
+        - Sid: EC2DescribeInstancePolicy
+          Effect: Allow
+          Action:
+          - ec2:DescribeInstances
+          Resource: '*'
       Events:
         ScheduledChangeRule:
           Type: EventBridgeRule
@@ -35,7 +50,7 @@ Resources:
               detail-type:
                 - AWS Health Event
             DeadLetterConfig:
-              Arn: !Ref EBRuleDLQ
+              Arn: !GetAtt EBRuleDLQ.Arn
         SpotInterruptionRule:
           Type: EventBridgeRule
           Properties:
@@ -45,7 +60,7 @@ Resources:
               detail-type:
                 - EC2 Spot Instance Interruption Warning
             DeadLetterConfig:
-              Arn: !Ref EBRuleDLQ
+              Arn: !GetAtt EBRuleDLQ.Arn
         InstanceStateChangeRule:
           Type: EventBridgeRule
           Properties:
@@ -60,7 +75,7 @@ Resources:
                     - "pending"
                     - "running"
             DeadLetterConfig:
-              Arn: !Ref EBRuleDLQ
+              Arn: !GetAtt EBRuleDLQ.Arn
   EBRuleDLQ:
     Type: AWS::SQS::Queue
   ClusterMappingTable:
