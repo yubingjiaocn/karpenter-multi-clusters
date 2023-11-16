@@ -1,0 +1,11 @@
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+**********************
+THIRD PARTY COMPONENTS
+**********************
+
+This software includes third party software subject to the following licenses.
+
+Karpenter
+Apache-2.0 license
+https://github.com/aws/karpenter/blob/main/LICENSE
