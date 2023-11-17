@@ -253,6 +253,8 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+.terraform.lock.hcl
+
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json
@@ -307,4 +309,4 @@ $RECYCLE.BIN/
 
 ### SAM+config Patch ###
 # SAM config - exclude this file if sharing publicly
-samconfig.toml
+**samconfig.toml
