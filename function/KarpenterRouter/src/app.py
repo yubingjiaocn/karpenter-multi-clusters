@@ -1,6 +1,7 @@
 import boto3
 import json
 import logging
+import os
 
 default_log_args = {
     "level":  logging.INFO,
@@ -23,6 +24,8 @@ ec2 = boto3.client('ec2')
 # 4 types of event in total: 3 from EC2, 1 one health
 def handler(event, context):
 
+    ClusterName = ""
+
     # Health change event
     if event['resources'] and event['source'] == 'aws.health':
         instance_id = event['resources']
@@ -33,46 +36,46 @@ def handler(event, context):
         instance_id = event['detail']['instance-id']
         logger.info("EC2 event received: "+ event['detail-type'] + " for " + instance_id)
 
-    filters = [{
-            'Name': 'tag:aws:eks:cluster-name',
-            'Values': [
-                '*'
-            ]
-        }]
-
     response = ec2.describe_instances(
-        InstanceIds=[instance_id], Filters=filters
+        InstanceIds=[instance_id]
     )
 
     if response['Reservations']:
         for tag in response['Reservations'][0]['Instances'][0]['Tags']:
             if tag['Key'] == 'aws:eks:cluster-name':
                 ClusterName = tag['Value']
-            break
-        logger.info("Instance belongs to " + ClusterName)
+                logger.info("Instance belongs to " + ClusterName)
+                break
 
-        try:
+        if ClusterName:
             response = table.get_item(Key={"ClusterName": ClusterName})
-        except ClientError as err:
-            logger.error("Cluster " + ClusterName + " not found")
-            return {
-                'statusCode': 200,
-                'body': json.dumps("Cluster " + ClusterName + " not found, ignore instance " + instance_id)
-            }
-        else:
-            queue_url = response['QueueUrl']
-            sqs.send_message(
-                QueueUrl=queue_url,
-                MessageBody=json.dumps(event)
-            )
-            logger.info("Message distributed to queue: " + ClusterName)
+            if 'Item' in response:
+                queue_url = response['Item']['QueueUrl']
+                sqs.send_message(
+                    QueueUrl=queue_url,
+                    MessageBody=json.dumps(event)
+                )
+                logger.info("Message distributed to queue: " + ClusterName)
 
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps("Message distributed to queue:" + ClusterName)
+                }
+            else:
+                logger.warning("Cluster " + ClusterName + " not found")
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps("Cluster " + ClusterName + " not found, ignore instance " + instance_id)
+                }
+        else:
+            logger.info(instance_id + " is not related to any EKS cluster")
             return {
                 'statusCode': 200,
-                'body': json.dumps("Message distributed to queue:" + ClusterName)
+                'body': json.dumps(instance_id+ " is not related to any EKS cluster")
             }
     else:
+        logger.warning(instance_id + " has been terminated")
         return {
             'statusCode': 200,
-            'body': json.dumps(instance_id+ " is not related to any EKS cluster")
+            'body': json.dumps(instance_id+ " has been terminated")
         }

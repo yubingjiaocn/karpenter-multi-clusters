@@ -3,19 +3,13 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   KarpenterRouter
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Timeout: 3
 
-Parameters:
-  ClusterName:
-    Type: String
-    Description: Name of EKS Cluster
-
 Resources:
   KarpenterRouterFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/
       Handler: app.handler
@@ -84,69 +78,14 @@ Resources:
       AttributeDefinitions:
         - AttributeName: ClusterName
           AttributeType: S
-        - AttributeName: QueueUrl
-          AttributeType: S
       KeySchema:
         - AttributeName: ClusterName
           KeyType: HASH
-        - AttributeName: QueueUrl
-          KeyType: RANGE
       BillingMode: PAY_PER_REQUEST
-  FISLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: 'fis-log-group'
-  FISExperiment:
-    Type: AWS::FIS::ExperimentTemplate
-    Properties:
-      Description: A Fault Injection Simulator experiment for testing spot instance interruptions.
-      Actions:
-        spotInstanceinterruption:
-          ActionId: 'aws:ec2:send-spot-instance-interruptions'
-          Parameters:
-            durationBeforeInterruption: 'PT2M'
-          Targets:
-            SpotInstances: spotInTargetCluster
-      Targets:
-        spotInTargetCluster:
-          ResourceTags:
-            aws:eks:cluster-name : !Sub '${ClusterName}'
-          ResourceType: 'aws:ec2:spot-instance'
-          SelectionMode: COUNT(1)
-      RoleArn: !GetAtt FISRole.Arn
-      StopConditions:
-        - Source: 'none'
-      Tags:
-        Name: !Sub 'SpotInterruptionTest-${ClusterName}'
-      LogConfiguration:
-        LogSchemaVersion: 1
-        CloudWatchLogsConfiguration:
-          LogGroupArn: !GetAtt FISLogGroup.Arn
-  FISRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: 'fis.amazonaws.com'
-            Action: 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - !Sub "arn:aws:iam::aws:policy/service-role/AWSFaultInjectionSimulatorEC2Access"
-      Policies:
-      - PolicyName: FISCloudWatchPolicy
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:*
-              Resource: '*'
 Outputs:
   KarpenterRouterFunction:
     Description: "Karpenter Router Lambda Function ARN"
     Value: !GetAtt KarpenterRouterFunction.Arn
   ClusterMappingTable:
     Description: "DynamoDB Tables to map EKS cluster to SQS queues"
-    Value: !GetAtt ClusterMappingTable.Arn
+    Value: !Ref ClusterMappingTable
